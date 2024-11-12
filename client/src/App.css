@@ -1,0 +1,105 @@
+/* App.css */
+
+.app-container {
+  display: flex;
+  height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s ease;
+}
+
+.main-content.expanded {
+  margin-left: 50px;
+}
+
+.input-container {
+  display: flex;
+  align-items: center;
+  margin-top: 10px;
+}
+
+.input-box {
+  flex: 1;
+  resize: none;  /* Prevent resizing */
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+  margin-right: 8px; /* Space between input and send button */
+  height: 40px;
+  overflow-y: auto; /* Prevent horizontal scrollbar */
+}
+
+.send-button {
+  background-color: #007bff;
+  color: white;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-weight: bold;
+  cursor: pointer;
+  height: 40px;  /* Fixed height to match input */
+  white-space: nowrap;
+}
+
+.send-button:hover {
+  background-color: #0056b3;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* Disable scrolling for the main page */
+}
+
+.ant-layout {
+  height: 100%;
+}
+
+/* Main container */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden; /* Prevents page-level scrolling */
+}
+
+/* Main content area */
+.app-content {
+  display: flex;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+/* Sidebar */
+.sidebar-container {
+  width: 250px;
+  background-color: #f8f9fa;
+  border-right: 1px solid #ddd;
+}
+
+/* Chat window */
+.chat-window-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Message area */
+.message-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+/* Token ticker fixed at the top */
+.token-ticker {
+  padding: 10px;
+  background-color: #e0e3e8;
+  text-align: center;
+  border-bottom: 1px solid #ddd;
+}
