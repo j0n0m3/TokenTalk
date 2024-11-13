@@ -1,81 +1,123 @@
 // ChatSidebar.js
-import React from 'react';
-import { Typography, Button, Divider, List, Empty } from 'antd';
-import { FileOutlined, PlusOutlined, EditOutlined, MenuOutlined, DeleteOutlined } from '@ant-design/icons';
+import React, { useState, useEffect } from 'react';
+import { Typography, Button, Divider, List, Empty, Input } from 'antd';
+import { PlusOutlined, EditOutlined, MenuOutlined, SaveOutlined, DeleteOutlined, LockOutlined, UnlockOutlined } from '@ant-design/icons';
 
 function ChatSidebar({
     chatHistory = [],
     setCurrentChatId,
     startNewChat,
     renameChat,
+    saveChat,
     isCollapsed,
     toggleCollapse,
     currentChatId,
-    deleteChat
+    deleteChat,
+    systemPrompt,
+    setSystemPrompt,
 }) {
+    const [isPromptLocked, setIsPromptLocked] = useState(true); // Locked by default
+
+    // Load the system prompt from localStorage when the component mounts
+    useEffect(() => {
+        const storedPrompt = localStorage.getItem('systemPrompt');
+        if (storedPrompt) {
+            setSystemPrompt(storedPrompt);
+        }
+    }, [setSystemPrompt]);
+
+    // Save the system prompt to localStorage whenever it changes
+    const handlePromptChange = (e) => {
+        const newPrompt = e.target.value;
+        setSystemPrompt(newPrompt);
+        localStorage.setItem('systemPrompt', newPrompt); // Save to localStorage
+    };
+
     return (
         <div
             style={{
-                width: isCollapsed ? '60px' : '180px',
+                width: isCollapsed ? '60px' : '220px',
                 height: '100vh',
-                padding: isCollapsed ? '5px' : '10px',
+                padding: isCollapsed ? '5px' : '15px 10px',
                 backgroundColor: '#f5f5f5',
                 display: 'flex',
                 flexDirection: 'column',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 borderRight: '1px solid #e8e8e8',
                 transition: 'width 0.3s ease',
             }}
         >
+            {/* Expand/Collapse Button */}
             <Button
                 icon={<MenuOutlined />}
                 onClick={toggleCollapse}
                 style={{
-                    alignSelf: 'center',
-                    marginBottom: '15px',
+                    marginBottom: '10px',
+                    width: '100%',
                     fontSize: '18px',
                     display: 'flex',
                     justifyContent: 'center',
-                    width: '100%',
+                    boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
                 }}
             />
 
+            {/* Divider Above Centered Buttons */}
+            {!isCollapsed && <Divider style={{ width: '100%', margin: '10px 0' }} />}
+
+            {/* Centered Buttons Section */}
             {!isCollapsed && (
-                <>
+                <div style={{
+                    width: '100%',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                }}>
                     <Button
                         type="primary"
                         icon={<PlusOutlined />}
                         onClick={startNewChat}
-                        block
-                        style={{ marginBottom: '10px', fontSize: '12px' }}
+                        style={{
+                            marginBottom: '8px',
+                            width: '100%',
+                            fontSize: '14px',
+                            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+                        }}
                     >
                         New Chat
                     </Button>
                     <Button
                         icon={<EditOutlined />}
                         onClick={renameChat}
-                        block
-                        style={{ marginBottom: '15px', fontSize: '12px' }}
+                        style={{
+                            marginBottom: '8px',
+                            width: '100%',
+                            fontSize: '14px',
+                            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+                        }}
                     >
                         Rename Chat
                     </Button>
-
-                    <Divider style={{ width: '100%', marginBottom: '10px' }} />
-
-                    <Typography.Text type="secondary" style={{ marginBottom: '8px', fontSize: '12px' }}>
-                        Upload Files
-                    </Typography.Text>
                     <Button
-                        icon={<FileOutlined />}
-                        block
-                        style={{ marginBottom: '15px', fontSize: '12px' }}
+                        icon={<SaveOutlined />}
+                        onClick={saveChat}
+                        style={{
+                            width: '100%',
+                            fontSize: '14px',
+                            boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.15)',
+                        }}
                     >
-                        Choose Files
+                        Save Chat
                     </Button>
+                </div>
+            )}
 
-                    <Divider style={{ width: '100%', marginBottom: '10px' }} />
+            {/* Divider Above Chat History */}
+            {!isCollapsed && <Divider style={{ width: '100%', margin: '10px 0' }} />}
 
-                    <Typography.Text type="secondary" style={{ marginBottom: '8px', fontSize: '12px' }}>
+            {/* Chat History Section */}
+            {!isCollapsed && (
+                <>
+                    <Typography.Text type="secondary" style={{ marginBottom: '8px', fontSize: '12px', color: '#595959' }}>
                         Chat History
                     </Typography.Text>
                     <div style={{ flex: 1, overflowY: 'auto', width: '100%' }}>
@@ -90,9 +132,10 @@ function ChatSidebar({
                                             justifyContent: 'space-between',
                                             marginBottom: '5px',
                                             padding: '4px 8px',
-                                            borderRadius: '4px',
+                                            borderRadius: '6px',
                                             backgroundColor: chat.id === currentChatId ? '#e6f7ff' : '#ffffff',
                                             transition: 'all 0.3s ease',
+                                            boxShadow: chat.id === currentChatId ? '0 2px 6px rgba(0, 0, 0, 0.1)' : 'none',
                                         }}
                                     >
                                         <Button
@@ -107,14 +150,8 @@ function ChatSidebar({
                                                 backgroundColor: 'transparent',
                                                 transition: 'all 0.3s ease',
                                             }}
-                                            className={chat.id === currentChatId ? 'active-chat' : ''}
                                         >
-                                            <Typography.Text
-                                                style={{
-                                                    fontSize: '12px',
-                                                    color: chat.id === currentChatId ? '#1890ff' : '#333',
-                                                }}
-                                            >
+                                            <Typography.Text style={{ fontSize: '12px' }}>
                                                 {chat.name}
                                             </Typography.Text>
                                         </Button>
@@ -144,6 +181,53 @@ function ChatSidebar({
                         )}
                     </div>
                 </>
+            )}
+
+            {/* Divider Above System Prompt */}
+            {!isCollapsed && <Divider style={{ width: '100%', marginTop: '10px' }} />}
+
+            {/* System Prompt Input Positioned with Increased Bottom Spacing */}
+            {!isCollapsed && (
+                <div style={{
+                    width: '100%',
+                    marginBottom: '30px',  // Increased spacing to move it away from the bottom
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', width: '90%', marginBottom: '6px' }}>
+                        <Typography.Text 
+                            type="secondary" 
+                            style={{ fontSize: '12px', color: '#595959', flex: 1 }}
+                        >
+                            System Prompt
+                        </Typography.Text>
+                        <Button
+                            type="text"
+                            icon={isPromptLocked ? <LockOutlined /> : <UnlockOutlined />}
+                            onClick={() => setIsPromptLocked(!isPromptLocked)}
+                            style={{
+                                fontSize: '16px',
+                                color: isPromptLocked ? '#ff4d4f' : '#1890ff',
+                                padding: '0 4px',
+                            }}
+                        />
+                    </div>
+                    <Input.TextArea
+                        value={systemPrompt}
+                        onChange={handlePromptChange}
+                        placeholder="Enter system prompt"
+                        autoSize={{ minRows: 3, maxRows: 5 }}
+                        style={{
+                            width: '100%',
+                            pointerEvents: isPromptLocked ? 'none' : 'auto',
+                            opacity: isPromptLocked ? 0.6 : 1,
+                            borderRadius: '4px',
+                            fontSize: '12px',
+                        }}
+                        disabled={isPromptLocked} // Disable editing when locked
+                    />
+                </div>
             )}
         </div>
     );

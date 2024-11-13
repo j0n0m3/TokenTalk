@@ -13,8 +13,8 @@ function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatN
     }, [messages]);
 
     return (
-        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', padding: '20px', overflow: 'hidden' }}>
-            <Typography.Title level={4}>{chatName}</Typography.Title>
+        <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', padding: '10px 20px', overflow: 'hidden' }}>
+            <Typography.Title level={4} style={{ marginBottom: '10px' }}>{chatName}</Typography.Title>
             <div
                 ref={messageContainerRef}
                 style={{
@@ -24,16 +24,17 @@ function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatN
                     backgroundColor: '#ffffff',
                     borderRadius: '8px',
                     boxShadow: 'inset 0 1px 3px rgba(0, 0, 0, 0.1)',
-                    marginBottom: '10px',
+                    marginBottom: '15px',
                 }}
             >
                 {messages.map((msg, index) => (
                     <ChatMessage key={index} role={msg.role} content={msg.content} />
                 ))}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
                 <Input.TextArea
                     rows={1}
+                    autoSize={{ minRows: 1, maxRows: 6 }}
                     placeholder="Type a message (Shift+Enter for line break)..."
                     value={inputMessage}
                     onChange={(e) => setInputMessage(e.target.value)}
@@ -45,7 +46,9 @@ function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatN
                     }}
                     style={{ flex: 1, resize: 'none' }}
                 />
-                <Button type="primary" onClick={handleSend}>Send</Button>
+                <Button type="primary" onClick={handleSend} style={{ marginLeft: '8px' }}>
+                    Send
+                </Button>
             </div>
         </div>
     );

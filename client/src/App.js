@@ -1,36 +1,83 @@
 // App.js
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import ChatWindow from './components/ChatWindow';
 import ChatSidebar from './components/ChatSidebar';
 import TokenTicker from './components/TokenTicker';
 import { v4 as uuidv4 } from 'uuid';
+import axios from 'axios';
 
 function App() {
     const [messages, setMessages] = useState([]);
     const [inputMessage, setInputMessage] = useState("");
     const [chatHistory, setChatHistory] = useState([]);
     const [currentChatId, setCurrentChatId] = useState(uuidv4());
-    const [chatName, setChatName] = useState("Untitled Chat");
+    const [chatName, setChatName] = useState("New Chat");
     const [isCollapsed, setIsCollapsed] = useState(false);
     const [tokenUsage, setTokenUsage] = useState({ inputTokens: 0, outputTokens: 0 });
+    const [systemPrompt, setSystemPrompt] = useState("Default system prompt text.");
 
-    // Start a new chat session
-    const startNewChat = () => {
-        if (messages.length > 0) {
-            const newChat = {
-                id: currentChatId,
-                name: chatName,
-                messages: [...messages],
-            };
-            setChatHistory(prevHistory => [...prevHistory, newChat]);
+    useEffect(() => {
+        const loadChatsFromAzure = async () => {
+            try {
+                const response = await axios.get('http://localhost:5001/api/loadChats');
+                setChatHistory(response.data);
+            } catch (error) {
+                console.error("Error loading chats from Azure:", error);
+            }
+        };
+
+        loadChatsFromAzure();
+    }, []);
+
+    const saveChat = async () => {
+        const chatData = { id: currentChatId, name: chatName, messages: [...messages] };
+
+        try {
+            await axios.post('http://localhost:5001/api/saveChat', {
+                chatId: currentChatId,
+                chatData,
+            });
+
+            setChatHistory((prevHistory) => {
+                const existingChatIndex = prevHistory.findIndex(chat => chat.id === currentChatId);
+                if (existingChatIndex !== -1) {
+                    const updatedHistory = [...prevHistory];
+                    updatedHistory[existingChatIndex] = chatData;
+                    return updatedHistory;
+                } else {
+                    return [...prevHistory, chatData];
+                }
+            });
+        } catch (error) {
+            console.error("Error saving chat to Azure:", error);
         }
+    };
+
+    const renameChat = async () => {
+        const newName = prompt("Enter a new name for this chat:", chatName);
+        if (newName && newName !== chatName) {
+            setChatName(newName);
+
+            // Update the name in chatHistory
+            setChatHistory(prevHistory => 
+                prevHistory.map(chat => 
+                    chat.id === currentChatId ? { ...chat, name: newName } : chat
+                )
+            );
+
+            // Save the updated chat to Azure Blob Storage
+            await saveChat(); 
+        }
+    };
+
+    const startNewChat = () => {
+        saveChat();
         setMessages([]);
         setInputMessage("");
         setCurrentChatId(uuidv4());
-        setChatName("Untitled Chat");
+        setChatName("New Chat");
     };
 
-    // Load selected chat from history
     const loadChatFromHistory = (chatId) => {
         const selectedChat = chatHistory.find(chat => chat.id === chatId);
         if (selectedChat) {
@@ -40,60 +87,53 @@ function App() {
         }
     };
 
-    // Toggle sidebar collapse state
-    const toggleSidebar = () => {
-        setIsCollapsed(!isCollapsed);
-    };
-
-    // Delete a chat from history
-    const deleteChat = (chatId) => {
-        setChatHistory(prevHistory => prevHistory.filter(chat => chat.id !== chatId));
-        if (currentChatId === chatId) {
-            startNewChat(); // Start a new chat if the deleted chat was active
+    const deleteChat = async (chatId) => {
+        try {
+            await axios.delete(`http://localhost:5001/api/deleteChat/${chatId}`);
+            setChatHistory((prevHistory) => prevHistory.filter(chat => chat.id !== chatId));
+            if (chatId === currentChatId) {
+                startNewChat();
+            }
+        } catch (error) {
+            console.error("Error deleting chat from Azure:", error);
         }
     };
 
-    // Handle sending a message
     const handleSend = async () => {
         if (inputMessage.trim()) {
             const userMessage = { role: 'You', content: inputMessage };
-            setMessages([...messages, userMessage]);
+            setMessages((prevMessages) => [...prevMessages, userMessage]);
             setInputMessage("");
 
             try {
-                const response = await fetch('http://localhost:5001/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: inputMessage }),
+                console.log("System Prompt being sent:", systemPrompt);
+                const response = await axios.post('http://localhost:5001/api/chat', {
+                    message: inputMessage,
+                    systemPrompt,
                 });
 
-                if (!response.ok) {
-                    throw new Error(`API response was not ok: ${response.statusText}`);
-                }
+                if (response.data && response.data.reply) {
+                    const assistantMessage = { role: 'Claude', content: response.data.reply };
+                    setMessages((prevMessages) => [...prevMessages, assistantMessage]);
 
-                const data = await response.json();
-                console.log("Server response:", data);
-
-                if (data && typeof data.reply === 'string') {
-                    const assistantMessage = { role: 'Claude', content: data.reply };
-                    setMessages(prevMessages => [...prevMessages, assistantMessage]);
-
-                    setTokenUsage(prevUsage => ({
-                        inputTokens: prevUsage.inputTokens + (data.inputTokens || 0),
-                        outputTokens: prevUsage.outputTokens + (data.outputTokens || 0),
+                    const inputTokens = response.data.inputTokens || 0;
+                    const outputTokens = response.data.outputTokens || 0;
+                    setTokenUsage(prev => ({
+                        inputTokens: prev.inputTokens + inputTokens,
+                        outputTokens: prev.outputTokens + outputTokens,
                     }));
                 } else {
-                    console.error("Unexpected response structure:", data);
-                    setMessages(prevMessages => [
+                    console.error("Unexpected response format:", response.data);
+                    setMessages((prevMessages) => [
                         ...prevMessages,
-                        { role: 'Claude', content: "Unexpected response structure from server." }
+                        { role: 'Claude', content: "Error: Unexpected response format from server." }
                     ]);
                 }
             } catch (error) {
-                console.error("Error fetching response from server:", error);
-                setMessages(prevMessages => [
+                console.error("Error communicating with server:", error);
+                setMessages((prevMessages) => [
                     ...prevMessages,
-                    { role: 'Claude', content: "Error communicating with server." }
+                    { role: 'Claude', content: "Error: Unable to reach server." }
                 ]);
             }
         }
@@ -105,11 +145,14 @@ function App() {
                 chatHistory={chatHistory}
                 setCurrentChatId={loadChatFromHistory}
                 startNewChat={startNewChat}
-                renameChat={() => setChatName(prompt("Enter a new name for this chat:", chatName) || chatName)}
+                renameChat={renameChat} // Use the updated renameChat function
+                saveChat={saveChat}
                 isCollapsed={isCollapsed}
-                toggleCollapse={toggleSidebar}
-                deleteChat={deleteChat} // Pass deleteChat function to ChatSidebar
-                currentChatId={currentChatId} // Pass current chat ID to track the active chat
+                toggleCollapse={() => setIsCollapsed(!isCollapsed)}
+                deleteChat={deleteChat}
+                currentChatId={currentChatId}
+                systemPrompt={systemPrompt}
+                setSystemPrompt={setSystemPrompt}
             />
             <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
                 <TokenTicker inputTokens={tokenUsage.inputTokens} outputTokens={tokenUsage.outputTokens} />
