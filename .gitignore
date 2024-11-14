@@ -10,6 +10,7 @@ client/dist/
 # Ignore environment files
 client/.env
 server/.env
+claude-api-ui/.env
 
 # Ignore local configuration files
 *.local
