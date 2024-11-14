@@ -1,4 +1,3 @@
-// ChatSidebar.js
 import React, { useState, useEffect } from 'react';
 import { Typography, Button, Divider, List, Empty, Input } from 'antd';
 import { PlusOutlined, EditOutlined, MenuOutlined, SaveOutlined, DeleteOutlined, LockOutlined, UnlockOutlined } from '@ant-design/icons';
@@ -18,7 +17,6 @@ function ChatSidebar({
 }) {
     const [isPromptLocked, setIsPromptLocked] = useState(true); // Locked by default
 
-    // Load the system prompt from localStorage when the component mounts
     useEffect(() => {
         const storedPrompt = localStorage.getItem('systemPrompt');
         if (storedPrompt) {
@@ -26,11 +24,10 @@ function ChatSidebar({
         }
     }, [setSystemPrompt]);
 
-    // Save the system prompt to localStorage whenever it changes
     const handlePromptChange = (e) => {
         const newPrompt = e.target.value;
         setSystemPrompt(newPrompt);
-        localStorage.setItem('systemPrompt', newPrompt); // Save to localStorage
+        localStorage.setItem('systemPrompt', newPrompt);
     };
 
     return (
@@ -47,7 +44,6 @@ function ChatSidebar({
                 transition: 'width 0.3s ease',
             }}
         >
-            {/* Expand/Collapse Button */}
             <Button
                 icon={<MenuOutlined />}
                 onClick={toggleCollapse}
@@ -61,10 +57,8 @@ function ChatSidebar({
                 }}
             />
 
-            {/* Divider Above Centered Buttons */}
             {!isCollapsed && <Divider style={{ width: '100%', margin: '10px 0' }} />}
 
-            {/* Centered Buttons Section */}
             {!isCollapsed && (
                 <div style={{
                     width: '100%',
@@ -111,10 +105,8 @@ function ChatSidebar({
                 </div>
             )}
 
-            {/* Divider Above Chat History */}
             {!isCollapsed && <Divider style={{ width: '100%', margin: '10px 0' }} />}
 
-            {/* Chat History Section */}
             {!isCollapsed && (
                 <>
                     <Typography.Text type="secondary" style={{ marginBottom: '8px', fontSize: '12px', color: '#595959' }}>
@@ -183,14 +175,12 @@ function ChatSidebar({
                 </>
             )}
 
-            {/* Divider Above System Prompt */}
             {!isCollapsed && <Divider style={{ width: '100%', marginTop: '10px' }} />}
 
-            {/* System Prompt Input Positioned with Increased Bottom Spacing */}
             {!isCollapsed && (
                 <div style={{
                     width: '100%',
-                    marginBottom: '30px',  // Increased spacing to move it away from the bottom
+                    marginBottom: '30px',
                     display: 'flex',
                     flexDirection: 'column',
                     alignItems: 'center',
@@ -225,7 +215,7 @@ function ChatSidebar({
                             borderRadius: '4px',
                             fontSize: '12px',
                         }}
-                        disabled={isPromptLocked} // Disable editing when locked
+                        disabled={isPromptLocked}
                     />
                 </div>
             )}

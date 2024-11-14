@@ -1,9 +1,10 @@
 // ChatWindow.js
+
 import React, { useRef, useEffect } from 'react';
 import ChatMessage from './ChatMessage';
 import { Typography, Input, Button } from 'antd';
 
-function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatName }) {
+function ChatWindow({ messages, setMessages, inputMessage, setInputMessage, handleSend, chatName }) {
     const messageContainerRef = useRef(null);
 
     useEffect(() => {
@@ -11,6 +12,13 @@ function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatN
             messageContainerRef.current.scrollTop = messageContainerRef.current.scrollHeight;
         }
     }, [messages]);
+
+    const handleSendMessage = () => {
+        if (inputMessage.trim()) {
+            handleSend(inputMessage);
+            setInputMessage("");
+        }
+    };
 
     return (
         <div style={{ display: 'flex', flexDirection: 'column', height: 'calc(100vh - 60px)', padding: '10px 20px', overflow: 'hidden' }}>
@@ -28,10 +36,10 @@ function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatN
                 }}
             >
                 {messages.map((msg, index) => (
-                    <ChatMessage key={index} role={msg.role} content={msg.content} />
+                    <ChatMessage key={index} role={msg.role} content={msg.content} timestamp={msg.timestamp} />
                 ))}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', position: 'relative' }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
                 <Input.TextArea
                     rows={1}
                     autoSize={{ minRows: 1, maxRows: 6 }}
@@ -41,12 +49,30 @@ function ChatWindow({ messages, inputMessage, setInputMessage, handleSend, chatN
                     onPressEnter={(e) => {
                         if (!e.shiftKey) {
                             e.preventDefault();
-                            handleSend();
+                            handleSendMessage();
                         }
                     }}
-                    style={{ flex: 1, resize: 'none' }}
+                    style={{
+                        flex: 1,
+                        resize: 'none',
+                        borderRadius: '8px',
+                        marginRight: '10px',
+                    }}
                 />
-                <Button type="primary" onClick={handleSend} style={{ marginLeft: '8px' }}>
+                <Button
+                    type="primary"
+                    onClick={handleSendMessage}
+                    style={{
+                        height: '38px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '16px',
+                        fontWeight: 'bold',
+                        padding: '0 20px',
+                        lineHeight: '1',
+                    }}
+                >
                     Send
                 </Button>
             </div>

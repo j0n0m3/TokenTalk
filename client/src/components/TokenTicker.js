@@ -1,39 +1,31 @@
-// TokenTicker.js
 import React, { useState, useEffect } from 'react';
 import { Typography, Popover, List, Divider } from 'antd';
 import axios from 'axios';
 
-function TokenTicker({ inputTokens, outputTokens }) {
+function TokenTicker({ inputTokens = 0, outputTokens = 0 }) {
     const [usage, setUsage] = useState({ tokens: 0, cost: 0 });
     const [inputUsage, setInputUsage] = useState(0);
     const [outputUsage, setOutputUsage] = useState(0);
     const [history, setHistory] = useState([]);
-    const [popoverVisible, setPopoverVisible] = useState(false);
+    const [popoverOpen, setPopoverOpen] = useState(false);
     const [currentWeekStart, setCurrentWeekStart] = useState(getLastSunday());
 
     useEffect(() => {
         fetchUsageHistory();
-        loadTokenUsage(); // Load saved token usage data on component mount
     }, []);
 
     useEffect(() => {
+        console.log("Updating token usage:", { inputTokens, outputTokens });
+
         if (inputTokens || outputTokens) {
             const newTokenCount = usage.tokens + inputTokens + outputTokens;
             const newCost = newTokenCount * 0.000003;
             setUsage({ tokens: newTokenCount, cost: newCost });
-            setInputUsage(inputUsage + inputTokens);
-            setOutputUsage(outputUsage + outputTokens);
+            setInputUsage((prevInputUsage) => prevInputUsage + inputTokens);
+            setOutputUsage((prevOutputUsage) => prevOutputUsage + outputTokens);
 
-            // Save updated token usage data to backend
-            saveTokenUsage({
-                inputTokens: inputUsage + inputTokens,
-                outputTokens: outputUsage + outputTokens,
-                totalTokens: newTokenCount,
-                totalCost: newCost
-            });
-
-            if (new Date().getDay() === 0) {
-                saveWeeklyUsage(currentWeekStart, inputUsage, outputUsage);
+            if (new Date().getDay() === 0) { // Save weekly data on Sundays
+                saveWeeklyUsage(currentWeekStart || getLastSunday(), inputUsage, outputUsage);
                 setCurrentWeekStart(getLastSunday());
                 setInputUsage(0);
                 setOutputUsage(0);
@@ -41,35 +33,12 @@ function TokenTicker({ inputTokens, outputTokens }) {
         }
     }, [inputTokens, outputTokens]);
 
-    // Fetch token usage history from the backend
     const fetchUsageHistory = async () => {
         try {
             const response = await axios.get('http://localhost:5001/api/getTokenUsageHistory');
             setHistory(response.data);
         } catch (error) {
             console.error("Error fetching usage history:", error);
-        }
-    };
-
-    // Load saved token usage from the backend
-    const loadTokenUsage = async () => {
-        try {
-            const response = await axios.get('http://localhost:5001/api/loadTokenUsage');
-            const { inputTokens, outputTokens, totalTokens, totalCost } = response.data;
-            setUsage({ tokens: totalTokens, cost: totalCost });
-            setInputUsage(inputTokens);
-            setOutputUsage(outputTokens);
-        } catch (error) {
-            console.error("Error loading token usage data:", error);
-        }
-    };
-
-    // Save token usage data to backend
-    const saveTokenUsage = async (usageData) => {
-        try {
-            await axios.post('http://localhost:5001/api/saveTokenUsage', usageData);
-        } catch (error) {
-            console.error("Error saving token usage data:", error);
         }
     };
 
@@ -84,7 +53,7 @@ function TokenTicker({ inputTokens, outputTokens }) {
                 outputTokens,
                 totalCost
             });
-            fetchUsageHistory();
+            fetchUsageHistory(); // Refresh history after saving
         } catch (error) {
             console.error("Error saving weekly usage:", error);
         }
@@ -96,8 +65,8 @@ function TokenTicker({ inputTokens, outputTokens }) {
         return lastSunday.toISOString().split('T')[0];
     }
 
-    const handlePopoverVisibleChange = (visible) => {
-        setPopoverVisible(visible);
+    const handlePopoverOpenChange = (open) => {
+        setPopoverOpen(open);
     };
 
     const popoverContent = (
@@ -111,7 +80,7 @@ function TokenTicker({ inputTokens, outputTokens }) {
                 boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.1)'
             }}>
                 <Typography.Text style={{ fontWeight: 'bold' }}>
-                    {currentWeekStart} - Current
+                    {currentWeekStart || getLastSunday()} - Current
                 </Typography.Text>
                 <br />
                 <Typography.Text>Total Tokens Used: {usage.tokens}</Typography.Text>
@@ -149,8 +118,8 @@ function TokenTicker({ inputTokens, outputTokens }) {
             content={popoverContent}
             title="Token Usage History"
             trigger="click"
-            visible={popoverVisible}
-            onVisibleChange={handlePopoverVisibleChange}
+            open={popoverOpen}
+            onOpenChange={handlePopoverOpenChange}
             placement="bottom"
         >
             <div 

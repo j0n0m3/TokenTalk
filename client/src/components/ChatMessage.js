@@ -1,76 +1,94 @@
 // ChatMessage.js
 import React from 'react';
-import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
-import { Button, Tooltip } from 'antd';
+import { Typography, Button } from 'antd';
 import { CopyOutlined } from '@ant-design/icons';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { nightOwl } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import moment from 'moment';
 
-function ChatMessage({ role, content }) {
-    // Function to detect if the message contains a code block and extract language
-    const detectLanguage = (text) => {
-        const match = text.match(/```([a-z]*)/i);
-        return match ? match[1] : 'plaintext';
-    };
+const ChatMessage = ({ role, content, timestamp }) => {
+    const isUser = role === 'You';
 
-    const isCodeBlock = content.includes("```");
+    // Detect code blocks within the message content
+    const formatContent = (content) => {
+        const codeRegex = /```(\w+)?\n([\s\S]*?)```/g;
+        const parts = content.split(codeRegex);
 
-    // Function to handle copying the code to clipboard
-    const handleCopy = (text) => {
-        navigator.clipboard.writeText(text);
-    };
-
-    // Function to render the message content based on whether it contains a code block
-    const renderContent = () => {
-        if (isCodeBlock) {
-            const language = detectLanguage(content);
-            const codeContent = content.replace(/```[a-z]*\n?|```$/g, "");
-
-            return (
-                <div style={{ position: 'relative', borderRadius: '6px', overflow: 'hidden' }}>
-                    <SyntaxHighlighter language={language} style={atomOneLight} wrapLongLines={true}>
-                        {codeContent}
-                    </SyntaxHighlighter>
-                    <Tooltip title="Copy code">
+        return parts.map((part, index) => {
+            if (index % 3 === 2) {
+                const language = parts[index - 1] || 'javascript';
+                return (
+                    <div key={index} style={{ position: 'relative', marginBottom: '10px' }}>
+                        <SyntaxHighlighter
+                            language={language}
+                            style={nightOwl}
+                            showLineNumbers
+                            customStyle={{
+                                padding: '15px',
+                                borderRadius: '8px',
+                                backgroundColor: '#011627', // Dark background for nightOwl theme
+                                color: '#d6deeb', // Light font color for readability
+                                overflowX: 'auto',
+                                fontSize: '14px',
+                            }}
+                        >
+                            {part}
+                        </SyntaxHighlighter>
                         <Button
                             icon={<CopyOutlined />}
-                            onClick={() => handleCopy(codeContent)}
+                            onClick={() => navigator.clipboard.writeText(part)}
+                            size="small"
                             style={{
                                 position: 'absolute',
-                                top: '6px',
-                                right: '6px',
-                                fontSize: '12px',
-                                padding: '3px 7px',
-                                backgroundColor: 'rgba(255, 255, 255, 0.8)',
+                                top: '10px',
+                                right: '10px',
+                                background: 'rgba(255, 255, 255, 0.8)',
                                 border: 'none',
-                                boxShadow: '0px 1px 3px rgba(0,0,0,0.2)',
+                                boxShadow: '0px 1px 3px rgba(0, 0, 0, 0.2)',
                             }}
-                        />
-                    </Tooltip>
-                </div>
-            );
-        } else {
-            return <span style={{ whiteSpace: 'pre-wrap' }}>{content}</span>;
-        }
+                        >
+                            Copy
+                        </Button>
+                    </div>
+                );
+            } else if (index % 3 === 0) {
+                return <span key={index}>{part}</span>;
+            }
+            return null;
+        });
     };
 
     return (
-        <div
-            style={{
-                marginBottom: '10px',
-                padding: '10px',
-                borderRadius: '8px',
-                backgroundColor: role === 'You' ? 'rgba(231, 245, 255, 0.8)' : 'rgba(232, 255, 241, 0.8)',
-                border: '1px solid rgba(200, 200, 200, 0.5)',
-                boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.1)',
-                position: 'relative',
-            }}
-        >
-            <strong>{role}:</strong>
-            <div style={{ marginTop: '4px' }}>
-                {renderContent()}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: isUser ? 'flex-start' : 'flex-end', marginBottom: '15px' }}>
+            <Typography.Text style={{ fontSize: '12px', color: '#888', marginBottom: '4px' }}>
+                {moment(timestamp).format('MM/DD/YYYY - h:mm:ss A')}
+            </Typography.Text>
+            <div style={{
+                maxWidth: '75%',
+                padding: '10px 15px',
+                backgroundColor: isUser ? 'rgba(230, 230, 230, 0.3)' : 'rgba(144, 238, 144, 0.3)', // Soft gray for user, light green for assistant
+                borderRadius: '10px',
+                border: '1px solid rgba(0, 0, 0, 0.1)',
+                boxShadow: '0px 1px 5px rgba(0, 0, 0, 0.2)',
+                whiteSpace: 'pre-wrap',
+                overflowWrap: 'break-word',
+                textAlign: 'left',
+            }}>
+                <Typography.Text
+                    style={{
+                        fontSize: '14px',
+                        fontWeight: '500',
+                        color: isUser ? '#52c41a' : '#096dd9',
+                    }}
+                >
+                    {role}
+                </Typography.Text>
+                <div style={{ marginTop: '5px', fontSize: '14px', color: '#333' }}>
+                    {formatContent(content)}
+                </div>
             </div>
         </div>
     );
-}
+};
 
 export default ChatMessage;

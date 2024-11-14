@@ -1,4 +1,3 @@
-// App.js
 import React, { useState, useEffect } from 'react';
 import ChatWindow from './components/ChatWindow';
 import ChatSidebar from './components/ChatSidebar';
@@ -17,27 +16,27 @@ function App() {
     const [systemPrompt, setSystemPrompt] = useState("Default system prompt text.");
 
     useEffect(() => {
-        const loadChatsFromAzure = async () => {
+        const loadChatsFromServer = async () => {
             try {
                 const response = await axios.get('http://localhost:5001/api/loadChats');
                 setChatHistory(response.data);
             } catch (error) {
-                console.error("Error loading chats from Azure:", error);
+                console.error("Error loading chats from server:", error);
             }
         };
 
-        loadChatsFromAzure();
+        loadChatsFromServer();
     }, []);
 
     const saveChat = async () => {
         const chatData = { id: currentChatId, name: chatName, messages: [...messages] };
-
+    
         try {
             await axios.post('http://localhost:5001/api/saveChat', {
                 chatId: currentChatId,
                 chatData,
             });
-
+    
             setChatHistory((prevHistory) => {
                 const existingChatIndex = prevHistory.findIndex(chat => chat.id === currentChatId);
                 if (existingChatIndex !== -1) {
@@ -49,7 +48,7 @@ function App() {
                 }
             });
         } catch (error) {
-            console.error("Error saving chat to Azure:", error);
+            console.error("Error saving chat to server:", error);
         }
     };
 
@@ -58,24 +57,28 @@ function App() {
         if (newName && newName !== chatName) {
             setChatName(newName);
 
-            // Update the name in chatHistory
-            setChatHistory(prevHistory => 
-                prevHistory.map(chat => 
+            setChatHistory(prevHistory =>
+                prevHistory.map(chat =>
                     chat.id === currentChatId ? { ...chat, name: newName } : chat
                 )
             );
 
-            // Save the updated chat to Azure Blob Storage
-            await saveChat(); 
+            await saveChat();
         }
     };
 
     const startNewChat = () => {
-        saveChat();
+        saveChat(); // Save the current chat before starting a new one
         setMessages([]);
         setInputMessage("");
-        setCurrentChatId(uuidv4());
+        const newChatId = uuidv4();
+        setCurrentChatId(newChatId);
         setChatName("New Chat");
+
+        setChatHistory(prevHistory => [
+            ...prevHistory,
+            { id: newChatId, name: "New Chat", messages: [] }
+        ]);
     };
 
     const loadChatFromHistory = (chatId) => {
@@ -92,50 +95,49 @@ function App() {
             await axios.delete(`http://localhost:5001/api/deleteChat/${chatId}`);
             setChatHistory((prevHistory) => prevHistory.filter(chat => chat.id !== chatId));
             if (chatId === currentChatId) {
-                startNewChat();
+                startNewChat(); // Start a new chat if the current chat was deleted
             }
         } catch (error) {
-            console.error("Error deleting chat from Azure:", error);
+            console.error("Error deleting chat from server:", error);
         }
     };
 
-    const handleSend = async () => {
-        if (inputMessage.trim()) {
-            const userMessage = { role: 'You', content: inputMessage };
-            setMessages((prevMessages) => [...prevMessages, userMessage]);
-            setInputMessage("");
+    const handleSend = async (messageContent) => {
+        if (!messageContent.trim()) return;
 
-            try {
-                console.log("System Prompt being sent:", systemPrompt);
-                const response = await axios.post('http://localhost:5001/api/chat', {
-                    message: inputMessage,
-                    systemPrompt,
-                });
+        const userMessage = { role: 'You', content: messageContent };
+        setMessages((prevMessages) => [...prevMessages, userMessage]);
+        setInputMessage("");
 
-                if (response.data && response.data.reply) {
-                    const assistantMessage = { role: 'Claude', content: response.data.reply };
-                    setMessages((prevMessages) => [...prevMessages, assistantMessage]);
+        try {
+            const response = await axios.post('http://localhost:5001/api/chat', {
+                message: messageContent,
+                systemPrompt,
+            });
 
-                    const inputTokens = response.data.inputTokens || 0;
-                    const outputTokens = response.data.outputTokens || 0;
-                    setTokenUsage(prev => ({
-                        inputTokens: prev.inputTokens + inputTokens,
-                        outputTokens: prev.outputTokens + outputTokens,
-                    }));
-                } else {
-                    console.error("Unexpected response format:", response.data);
-                    setMessages((prevMessages) => [
-                        ...prevMessages,
-                        { role: 'Claude', content: "Error: Unexpected response format from server." }
-                    ]);
-                }
-            } catch (error) {
-                console.error("Error communicating with server:", error);
+            if (response.data && response.data.reply) {
+                const assistantMessage = { role: 'Claude', content: response.data.reply };
+                setMessages((prevMessages) => [...prevMessages, assistantMessage]);
+
+                const inputTokens = response.data.inputTokens || 0;
+                const outputTokens = response.data.outputTokens || 0;
+                setTokenUsage(prev => ({
+                    inputTokens: prev.inputTokens + inputTokens,
+                    outputTokens: prev.outputTokens + outputTokens,
+                }));
+            } else {
+                console.error("Unexpected response format from server:", response.data);
                 setMessages((prevMessages) => [
                     ...prevMessages,
-                    { role: 'Claude', content: "Error: Unable to reach server." }
+                    { role: 'Claude', content: "Error: Unexpected response format from server." }
                 ]);
             }
+        } catch (error) {
+            console.error("Error communicating with server:", error);
+            setMessages((prevMessages) => [
+                ...prevMessages,
+                { role: 'Claude', content: "Error: Unable to reach server." }
+            ]);
         }
     };
 
@@ -145,7 +147,7 @@ function App() {
                 chatHistory={chatHistory}
                 setCurrentChatId={loadChatFromHistory}
                 startNewChat={startNewChat}
-                renameChat={renameChat} // Use the updated renameChat function
+                renameChat={renameChat}
                 saveChat={saveChat}
                 isCollapsed={isCollapsed}
                 toggleCollapse={() => setIsCollapsed(!isCollapsed)}
@@ -158,6 +160,7 @@ function App() {
                 <TokenTicker inputTokens={tokenUsage.inputTokens} outputTokens={tokenUsage.outputTokens} />
                 <ChatWindow
                     messages={messages}
+                    setMessages={setMessages}
                     inputMessage={inputMessage}
                     setInputMessage={setInputMessage}
                     handleSend={handleSend}

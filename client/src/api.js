@@ -6,7 +6,8 @@ const api = axios.create({
 });
 
 // Function to send a message to the Claude API via the backend
-export const sendMessage = (message) => api.post('/chat', { message });
+export const sendMessage = (message, systemPrompt) => 
+    api.post('/chat', { message, systemPrompt });
 
 // Function to fetch chat history if implemented in the backend
 export const fetchChatHistory = () => api.get('/chats');

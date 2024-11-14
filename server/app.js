@@ -1,154 +1,185 @@
-// app.js
 require('dotenv').config();
 const express = require('express');
-const { BlobServiceClient } = require('@azure/storage-blob');
 const cors = require('cors');
-const { Anthropic } = require('@anthropic-ai/sdk'); // For Claude API interaction
-const sqlite3 = require('sqlite3').verbose(); // Use SQLite for storing token usage data
+const axios = require('axios');
+const { BlobServiceClient } = require('@azure/storage-blob');
 
 const app = express();
 app.use(express.json());
 app.use(cors());
 
-// Initialize Azure Blob Service Client
+const CLAUDE_MESSAGES_API_URL = 'https://api.anthropic.com/v1/messages';
 const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.AZURE_STORAGE_CONNECTION_STRING);
-const containerClient = blobServiceClient.getContainerClient("chathistory");
+const containerName = process.env.CHAT_CONTAINER_NAME || 'chathistory';
 
-// Initialize the SQLite database
-const db = new sqlite3.Database(':memory:'); // Replace with persistent database path
+// Constants
+const MAX_REQUEST_SIZE_BYTES = 900000; // Safe limit below 1 MB for Anthropic's API
 
-// Create the TokenUsage table
-db.serialize(() => {
-    db.run(`
-        CREATE TABLE IF NOT EXISTS TokenUsage (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            start_date TEXT,
-            input_tokens INTEGER,
-            output_tokens INTEGER,
-            total_cost REAL
-        )
-    `);
-});
+// Function to estimate byte size of a string
+function calculateByteSize(str) {
+    return Buffer.byteLength(str, 'utf-8');
+}
 
-// Initialize Anthropic (Claude) Client
-const anthropic = new Anthropic({
-    apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
-// Endpoint to save chat to Azure Blob Storage
-app.post('/api/saveChat', async (req, res) => {
-    const { chatId, chatData } = req.body;
-
+async function uploadChatHistory(chatData, fileName) {
     try {
-        const blobName = `${chatId}.json`;
-        const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-        await blockBlobClient.upload(JSON.stringify(chatData), JSON.stringify(chatData).length);
-        res.status(200).json({ message: 'Chat saved successfully.' });
-    } catch (error) {
-        console.error("Error saving chat to Azure Blob:", error);
-        res.status(500).json({ error: 'Error saving chat.' });
-    }
-});
+        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const containerExists = await containerClient.exists();
 
-// Endpoint to load all chats from Azure Blob Storage
-app.get('/api/loadChats', async (req, res) => {
-    try {
-        const chatList = [];
-        for await (const blob of containerClient.listBlobsFlat()) {
-            const blockBlobClient = containerClient.getBlockBlobClient(blob.name);
-            const downloadBlockBlobResponse = await blockBlobClient.download(0);
-            const downloaded = await streamToString(downloadBlockBlobResponse.readableStreamBody);
-            chatList.push(JSON.parse(downloaded));
+        if (!containerExists) {
+            console.log(`Creating container: ${containerName}`);
+            await containerClient.create();
         }
-        res.status(200).json(chatList);
+
+        const blobClient = containerClient.getBlockBlobClient(fileName);
+        await blobClient.upload(JSON.stringify(chatData), Buffer.byteLength(JSON.stringify(chatData)));
+        console.log(`Chat data uploaded as blob with name: ${fileName}`);
     } catch (error) {
-        console.error("Error loading chats from Azure Blob:", error);
-        res.status(500).json({ error: 'Error loading chats.' });
+        console.error("Error uploading to Blob Storage:", error);
     }
-});
+}
 
-// Endpoint to delete a chat from Azure Blob Storage
-app.delete('/api/deleteChat/:chatId', async (req, res) => {
-    const { chatId } = req.params;
-    try {
-        const blobName = `${chatId}.json`;
-        const blockBlobClient = containerClient.getBlockBlobClient(blobName);
-        await blockBlobClient.deleteIfExists();
-        res.status(200).json({ message: 'Chat deleted successfully.' });
-    } catch (error) {
-        console.error("Error deleting chat from Azure Blob:", error);
-        res.status(500).json({ error: 'Error deleting chat.' });
-    }
-});
+// Function to send messages to Claude API, with support for chunking
+async function sendToClaudeAPI(message, systemPrompt = '') {
+    const content = `${systemPrompt ? systemPrompt + '\n\n' : ''}${message}`;
+    const contentSize = calculateByteSize(content);
 
-// Endpoint to save weekly token usage data
-app.post('/api/saveTokenUsage', (req, res) => {
-    const { startDate, inputTokens, outputTokens } = req.body;
-    const totalTokens = inputTokens + outputTokens;
-    const totalCost = totalTokens * 0.000003; // Adjust cost rate as needed
-
-    db.run(
-        `INSERT INTO TokenUsage (start_date, input_tokens, output_tokens, total_cost) VALUES (?, ?, ?, ?)`,
-        [startDate, inputTokens, outputTokens, totalCost],
-        function (err) {
-            if (err) {
-                console.error("Error saving token usage:", err);
-                return res.status(500).json({ error: "Error saving token usage." });
+    // Check if the content is within the maximum allowed request size
+    if (contentSize <= MAX_REQUEST_SIZE_BYTES) {
+        return await sendClaudeRequest(content); // Single request if under limit
+    } else {
+        // Split message into chunks if it exceeds size limit
+        console.log("Message exceeds size limit, chunking message...");
+        const chunkedResponses = [];
+        const words = message.split(' '); // Split message by words for chunking
+        let chunk = '';
+        
+        for (const word of words) {
+            // Check size if adding the word exceeds limit
+            if (calculateByteSize(chunk + word) + calculateByteSize(systemPrompt) > MAX_REQUEST_SIZE_BYTES) {
+                // Send current chunk and reset
+                const response = await sendClaudeRequest(chunk, systemPrompt);
+                chunkedResponses.push(response);
+                chunk = word + ' ';
+            } else {
+                chunk += word + ' ';
             }
-            res.status(200).json({ message: "Token usage saved successfully." });
         }
-    );
-});
 
-// Endpoint to retrieve token usage history
-app.get('/api/getTokenUsageHistory', (req, res) => {
-    db.all(`SELECT * FROM TokenUsage ORDER BY start_date DESC`, (err, rows) => {
-        if (err) {
-            console.error("Error retrieving token usage history:", err);
-            return res.status(500).json({ error: "Error retrieving token usage history." });
+        // Send last chunk if any words remain
+        if (chunk) {
+            const response = await sendClaudeRequest(chunk.trim(), systemPrompt);
+            chunkedResponses.push(response);
         }
-        res.status(200).json(rows);
-    });
-});
 
-// Chat endpoint to interact with Claude (Anthropic API)
+        // Combine all chunk responses
+        return chunkedResponses.join('\n\n');
+    }
+}
+
+// Function to handle Claude API request and response
+async function sendClaudeRequest(content, systemPrompt = '') {
+    try {
+        const response = await axios.post(
+            CLAUDE_MESSAGES_API_URL,
+            {
+                model: "claude-3-5-sonnet-20241022",
+                messages: [{ role: "user", content }],
+                max_tokens: 1024,
+                temperature: 0.7,
+            },
+            {
+                headers: {
+                    'Content-Type': 'application/json',
+                    'anthropic-version': '2023-06-01',
+                    'x-api-key': process.env.ANTHROPIC_API_KEY,
+                },
+            }
+        );
+
+        console.log("Claude API response received");
+
+        // Return the assistant's response
+        return response.data.content
+            .filter(item => item.type === "text")
+            .map(item => item.text)
+            .join(" ");
+    } catch (error) {
+        if (error.response && error.response.status === 413) {
+            console.error("Error: Request too large. Try reducing the message size.");
+        } else {
+            console.error("Error communicating with Claude API:", error);
+        }
+        throw error;
+    }
+}
+
 app.post('/api/chat', async (req, res) => {
     const { message, systemPrompt } = req.body;
-
-    console.log("Received System Prompt:", systemPrompt);
+    console.log("Received chat request:", message);
 
     try {
-        const response = await anthropic.messages.create({
-            model: "claude-3-5-sonnet-20241022",
-            max_tokens: 2048,
-            system: systemPrompt,
-            messages: [
-                { role: "user", content: message }
-            ],
-            temperature: 0.7,
-            stream: false,
-        });
+        // Send to Claude API with size management
+        const replyContent = await sendToClaudeAPI(message, systemPrompt);
 
-        if (response && response.content) {
-            res.json({
-                reply: response.content.map(block => block.text).join(''),
-                inputTokens: response.usage?.input_tokens || 0,
-                outputTokens: response.usage?.output_tokens || 0,
-            });
-        } else {
-            console.error("Unexpected response format from Claude API");
-            res.status(500).json({ error: "Unexpected response format from Claude API" });
-        }
-    } catch (error) {
-        console.error("Error calling Claude API:", error);
-        res.status(500).json({
-            error: 'Unexpected error communicating with Claude API',
-            details: error.message
+        // Token usage estimation
+        const inputTokens = message.split(" ").length;
+        const outputTokens = replyContent.split(" ").length;
+
+        console.log(`Tokens used - Input: ${inputTokens}, Output: ${outputTokens}`);
+
+        const chatData = {
+            userMessage: message,
+            assistantResponse: replyContent,
+            inputTokens,
+            outputTokens,
+            timestamp: new Date().toISOString(),
+        };
+
+        const fileName = `chat_${Date.now()}.json`;
+        await uploadChatHistory(chatData, fileName);
+
+        res.json({
+            reply: replyContent,
+            inputTokens,
+            outputTokens,
         });
+    } catch (error) {
+        res.status(500).json({ error: "Failed to process request with Claude API" });
     }
 });
 
-// Utility function to read stream to string
+app.post('/api/saveChat', async (req, res) => {
+    const chatData = req.body;
+    const fileName = `chat_${Date.now()}.json`;
+
+    try {
+        await uploadChatHistory(chatData, fileName);
+        res.status(200).send({ message: "Chat saved successfully" });
+    } catch (error) {
+        console.error("Error saving chat:", error);
+        res.status(500).send({ error: "Failed to save chat data" });
+    }
+});
+
+app.get('/api/getTokenUsageHistory', async (req, res) => {
+    try {
+        const containerClient = blobServiceClient.getContainerClient(containerName);
+        const history = [];
+
+        for await (const blob of containerClient.listBlobsFlat()) {
+            const blobClient = containerClient.getBlobClient(blob.name);
+            const downloadBlockBlobResponse = await blobClient.download();
+            const downloaded = await streamToString(downloadBlockBlobResponse.readableStreamBody);
+            history.push(JSON.parse(downloaded));
+        }
+
+        res.json({ history });
+    } catch (error) {
+        console.error("Error fetching usage history:", error);
+        res.status(500).json({ error: "Failed to fetch usage history" });
+    }
+});
+
 async function streamToString(readableStream) {
     return new Promise((resolve, reject) => {
         const chunks = [];
