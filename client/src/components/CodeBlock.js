@@ -49,9 +49,9 @@ const ChatMessage = ({ message, isUser }) => {
                         codeTagProps={{
                             style: {
                                 display: 'block',
-                                maxWidth: '100%', // Limit code width to the bubble width
-                                overflowX: 'auto', // Allow horizontal scrolling for extremely long lines
-                                whiteSpace: 'pre-wrap', // Allow text wrapping within the code block
+                                maxWidth: '100%',
+                                overflowX: 'auto', 
+                                whiteSpace: 'pre-wrap',
                             },
                         }}
                     >
