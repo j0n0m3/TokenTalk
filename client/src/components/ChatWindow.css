@@ -2,7 +2,7 @@
 .chat-window {
     display: flex;
     flex-direction: column;
-    height: calc(100vh - 60px); /* Adjust this height to accommodate TokenTicker */
+    height: calc(100vh - 60px);
     overflow: hidden; /* Prevent entire chat window from scrolling */
 }
 
