@@ -16,7 +16,7 @@ html, body, #root {
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow-y: auto; /* Allow scrolling for main content */
+  overflow-y: auto;
   padding: 10px;
 }
 
@@ -39,7 +39,7 @@ html, body, #root {
   display: flex;
   flex-direction: column;
   padding: 10px;
-  overflow-y: auto; /* Allows scrolling for chat messages */
+  overflow-y: auto;
 }
 
 .message-container {
