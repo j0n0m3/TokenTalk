@@ -12,10 +12,8 @@ const CLAUDE_MESSAGES_API_URL = 'https://api.anthropic.com/v1/messages';
 const blobServiceClient = BlobServiceClient.fromConnectionString(process.env.AZURE_STORAGE_CONNECTION_STRING);
 const containerName = process.env.CHAT_CONTAINER_NAME || 'chathistory';
 
-// Constants
 const MAX_REQUEST_SIZE_BYTES = 900000; // Safe limit below 1 MB for Anthropic's API
 
-// Function to estimate byte size of a string
 function calculateByteSize(str) {
     return Buffer.byteLength(str, 'utf-8');
 }
@@ -38,12 +36,12 @@ async function uploadChatHistory(chatData, fileName) {
     }
 }
 
-// Function to send messages to Claude API, with support for chunking
+// support for chunking
 async function sendToClaudeAPI(message, systemPrompt = '') {
     const content = `${systemPrompt ? systemPrompt + '\n\n' : ''}${message}`;
     const contentSize = calculateByteSize(content);
 
-    // Check if the content is within the maximum allowed request size
+    // Check if content within maximum allowed request size
     if (contentSize <= MAX_REQUEST_SIZE_BYTES) {
         return await sendClaudeRequest(content); // Single request if under limit
     } else {
@@ -76,7 +74,6 @@ async function sendToClaudeAPI(message, systemPrompt = '') {
     }
 }
 
-// Function to handle Claude API request and response
 async function sendClaudeRequest(content, systemPrompt = '') {
     try {
         const response = await axios.post(
@@ -98,7 +95,6 @@ async function sendClaudeRequest(content, systemPrompt = '') {
 
         console.log("Claude API response received");
 
-        // Return the assistant's response
         return response.data.content
             .filter(item => item.type === "text")
             .map(item => item.text)
@@ -118,10 +114,8 @@ app.post('/api/chat', async (req, res) => {
     console.log("Received chat request:", message);
 
     try {
-        // Send to Claude API with size management
         const replyContent = await sendToClaudeAPI(message, systemPrompt);
 
-        // Token usage estimation
         const inputTokens = message.split(" ").length;
         const outputTokens = replyContent.split(" ").length;
 
